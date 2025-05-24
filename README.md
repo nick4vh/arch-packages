@@ -54,4 +54,20 @@ It installs a collection of essential developer tools, creative apps, browsers, 
 1. Clone the repository:
    ```bash
    git clone https://github.com/nick4vh/arch-packages.git
-   cd arch-setup
+
+2. Navigate into the cloned directory:
+   ```bash
+   cd arch-packages
+
+3. Make the script executable:
+   ```bash
+   chmod +x install-apps.sh
+
+4. Run the script:
+    ```bash
+    ./install-apps.sh
+
+Alternatively, run it directly without cloning:
+```bash
+bash <(curl -s https://raw.githubusercontent.com/nick4vh/arch-packages/main/install-apps.sh)
+
