@@ -38,6 +38,17 @@ PKGS_PACMAN=(
   fastfetch
   virt-manager
   virt-viewer
+  qemu-full
+  edk2-ovmf
+  dnsmasq
+  iptables-nft
+  bridge-utils
+  vde2
+  openbsd-netcat
+  libvirt
+  usbredir
+  spice
+  spice-gtk
 )
 
 # AUR packages – yay must be installed
@@ -66,8 +77,31 @@ fi
 echo "==> Installing AUR packages..."
 yay -S --noconfirm --needed "${PKGS_AUR[@]}"
 
-# Add current user to docker group
-echo "==> Adding current user to the docker group..."
-sudo usermod -aG docker "$USER"
+# Enable and start libvirtd service
+echo "==> Enabling and starting libvirtd service..."
+sudo systemctl enable --now libvirtd.service
 
-echo "==> Installation completed. A reboot or re-login may be required."
+# Add current user to docker and libvirt groups
+echo "==> Adding current user to the docker and libvirt groups..."
+sudo usermod -aG docker,libvirt "$USER"
+
+# Load KVM kernel module (Intel or AMD detection)
+echo "==> Loading KVM kernel modules..."
+if grep -E -q 'vendor_id.*GenuineIntel' /proc/cpuinfo; then
+  sudo modprobe kvm_intel
+elif grep -E -q 'vendor_id.*AuthenticAMD' /proc/cpuinfo; then
+  sudo modprobe kvm_amd
+fi
+
+# Ensure /dev/kvm exists
+if [ ! -e /dev/kvm ]; then
+  echo "ERROR: /dev/kvm does not exist. Virtualization support may be disabled in BIOS/UEFI."
+else
+  echo "==> /dev/kvm found. Virtualization is supported."
+fi
+
+# Set correct permissions on /home for QEMU (if Btrfs Snapshots, etc.)
+echo "==> Setting permissions on /home for QEMU..."
+chmod o+rx /home/"$USER"
+
+echo "==> KVM/QEMU/libvirt setup completed. Please reboot or re-login to apply group changes."
