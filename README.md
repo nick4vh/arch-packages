@@ -1,10 +1,10 @@
-# 🛠️ Arch Linux Setup Script
+# Arch Linux Setup Script
 
 This repository contains a post-installation script (`install-apps.sh`) to quickly set up a full-featured desktop environment on Arch Linux or any Arch-based distribution (e.g. CachyOS, EndeavourOS, Garuda, etc.).
 
 It installs a collection of essential developer tools, creative apps, browsers, system utilities, media tools, and virtualization clients.
 
-## 📦 Included Software
+## Included Software
 
 ### Development Tools
 - `vscodium` (AUR)
@@ -15,7 +15,6 @@ It installs a collection of essential developer tools, creative apps, browsers, 
 ### Docker
 - `docker`
 - `docker-compose`
-> ⚠️ The current user is added to the `docker` group automatically (a reboot or new session may be required).
 
 ### Creative Tools
 - `inkscape`, `gimp`, `krita`
@@ -49,7 +48,7 @@ It installs a collection of essential developer tools, creative apps, browsers, 
 
 ---
 
-## ▶️ How to Use
+## How to Use
 
 1. Clone the repository:
    ```bash
