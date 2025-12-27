@@ -4,50 +4,6 @@ This repository contains a post-installation script (`install-apps.sh`) to quick
 
 It installs a collection of essential developer tools, creative apps, browsers, system utilities, media tools, and virtualization clients.
 
-## Included Software
-
-### Development Tools
-- `vscodium` (AUR)
-- `neovim`, `vim`
-- `nodejs`, `yarn`
-- `git`, `wget`
-
-### Docker
-- `docker`
-- `docker-compose`
-
-### Creative Tools
-- `inkscape`, `gimp`, `krita`
-- `kdenlive`, `davinci-resolve` (AUR)
-
-### Web Browsers
-- `firefox`
-- `chromium`
-- `brave` (AUR)
-
-### Communication
-- `discord`
-
-### Notes & Productivity
-- `bitwarden` (AUR)
-- `joplin-desktop` (AUR)
-- `libreoffice-fresh`
-- `nextcloud-client`
-- `evolution`
-
-### Media
-- `vlc`, `mpv`, `spotify` (AUR)
-
-### Terminal & System Info
-- `alacritty`
-- `htop`, `btop`
-- `neofetch`, `fastfetch`
-
-### Virtualization (Client Tools)
-- `virt-manager`, `virt-viewer`
-
----
-
 ## How to Use
 
 1. Clone the repository:
