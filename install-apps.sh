@@ -65,6 +65,8 @@ PKGS_PACMAN=(
     spice
     spice-gtk
     spice-vdagent
+    remmina
+    freerdp
     
     # Network & file transfer
     wget
@@ -93,6 +95,7 @@ PKGS_PACMAN=(
     libreoffice-fresh
     nextcloud-client
     evolution
+    okular
     
     # Media players
     vlc
@@ -121,6 +124,7 @@ PKGS_AUR=(
     joplin-appimage         # AppImage version is more stable
     bitwarden
     spotify
+    remmina-plugin-rdesktop # Remmina RDP Plugin
     # davinci-resolve       # Commented out: very large download, uncomment if needed
 )
 
