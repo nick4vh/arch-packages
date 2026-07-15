@@ -1,260 +1,295 @@
 #!/usr/bin/env bash
 
-# Strict error handling
 set -euo pipefail
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
-# Logging functions
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $1"
-}
+log_info() { echo -e "${GREEN}[INFO]${NC} $1"; }
+log_warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-# Check if running as root
 if [[ $EUID -eq 0 ]]; then
-   log_error "This script should NOT be run as root (don't use sudo)"
-   exit 1
+    log_error "Please run this script as your normal user (without sudo)."
+    exit 1
 fi
 
-log_info "Starting CachyOS post-installation setup..."
-
-# Update the system
-log_info "Updating system packages..."
+log_info "Updating system..."
 sudo pacman -Syu --noconfirm
 
-# Official repository packages
 PKGS_PACMAN=(
-    # Development tools
+
     neovim
     vim
     git
-    base-devel  # Required for AUR builds
-    
-    # Programming languages & package managers
+    base-devel
+
     nodejs
     npm
-    yarn
-    
-    # Container & virtualization
+
     docker
-    docker-compose
     docker-buildx
+
     libvirt
+    libvirt-python
+    virt-install
     virt-manager
     virt-viewer
+
     qemu-full
     edk2-ovmf
+    swtpm
+    virtio-win
+
     dnsmasq
     iptables-nft
-    bridge-utils
     vde2
     openbsd-netcat
     usbredir
+
     spice
     spice-gtk
     spice-vdagent
+
     remmina
     freerdp
-    
-    # Network & file transfer
+
     wget
     curl
     rsync
     filezilla
-    
-    # Graphics & creative
+
     inkscape
     gimp
     krita
-    kdenlive
     blender
-    
-    # Browsers
+    kdenlive
+
     firefox
     chromium
-    
-    # Communication
+
     discord
-    
-    # Recording & streaming
     obs-studio
-    
-    # Office & productivity
+
     libreoffice-fresh
     nextcloud-client
-    evolution
     okular
-    
-    # Media players
+
     vlc
     mpv
-    
-    # Terminal & monitoring
-    alacritty
+
     kitty
+    alacritty
+
     htop
     btop
-    neofetch
     fastfetch
-    
-    # System utilities
+
+    bash-completion
     man-db
     man-pages
-    bash-completion
-    reflector  # For mirror management
-    pkgfile    # For command-not-found functionality
+    reflector
+    pkgfile
 )
 
-# AUR packages
 PKGS_AUR=(
-    visual-studio-code-bin  # Official VS Code binary
+    visual-studio-code-bin
     brave-bin
-    joplin-appimage         # AppImage version is more stable
-    bitwarden
     spotify
-    remmina-plugin-rdesktop # Remmina RDP Plugin
-    # davinci-resolve       # Commented out: very large download, uncomment if needed
+    bitwarden
+    joplin-appimage
 )
 
-# Install official packages
-log_info "Installing packages from official repositories..."
-if sudo pacman -S --noconfirm --needed "${PKGS_PACMAN[@]}"; then
-    log_info "Official packages installed successfully"
-else
-    log_error "Some official packages failed to install. Check errors above."
-    exit 1
-fi
+log_info "Installing packages..."
+sudo pacman -S --needed --noconfirm "${PKGS_PACMAN[@]}"
 
-# Install yay if not present
-if ! command -v yay &> /dev/null; then
-    log_info "yay not found. Installing yay..."
-    
-    # Create temp directory
-    TEMP_DIR=$(mktemp -d)
-    cd "$TEMP_DIR"
-    
-    git clone https://aur.archlinux.org/yay-bin.git
-    cd yay-bin
+################################################################################
+# yay
+################################################################################
+
+if ! command -v yay >/dev/null; then
+    log_info "Installing yay..."
+
+    TMP=$(mktemp -d)
+    git clone https://aur.archlinux.org/yay-bin.git "$TMP/yay-bin"
+
+    pushd "$TMP/yay-bin"
     makepkg -si --noconfirm
-    
-    # Cleanup
-    cd ~
-    rm -rf "$TEMP_DIR"
-    
-    log_info "yay installed successfully"
-else
-    log_info "yay is already installed"
+    popd
+
+    rm -rf "$TMP"
 fi
 
-# Install AUR packages
-log_info "Installing AUR packages..."
+################################################################################
+# AUR
+################################################################################
+
 for pkg in "${PKGS_AUR[@]}"; do
-    if yay -S --noconfirm --needed "$pkg"; then
-        log_info "Installed: $pkg"
-    else
-        log_warn "Failed to install: $pkg (continuing...)"
-    fi
+    yay -S --needed --noconfirm "$pkg" || log_warn "$pkg failed."
 done
 
-# Docker setup
+################################################################################
+# Docker
+################################################################################
+
 log_info "Configuring Docker..."
+
 sudo systemctl enable --now docker.service
 
-if ! groups "$USER" | grep -q docker; then
+if ! groups "$USER" | grep -qw docker; then
     sudo usermod -aG docker "$USER"
-    log_info "Added $USER to docker group"
-else
-    log_info "User already in docker group"
 fi
 
-# Libvirt/KVM setup
-log_info "Configuring libvirt and KVM..."
+################################################################################
+# Libvirt
+################################################################################
 
-# Enable and start libvirtd
-sudo systemctl enable --now libvirtd.service
-sudo systemctl enable --now virtlogd.service
+log_info "Configuring Libvirt..."
 
-# Add user to libvirt group
-if ! groups "$USER" | grep -q libvirt; then
+sudo systemctl enable --now \
+    libvirtd.service \
+    virtlogd.service \
+    virtnetworkd.service
+
+if ! groups "$USER" | grep -qw libvirt; then
     sudo usermod -aG libvirt "$USER"
-    log_info "Added $USER to libvirt group"
-else
-    log_info "User already in libvirt group"
 fi
 
-# Detect CPU vendor and configure KVM
-log_info "Detecting CPU and configuring KVM..."
-if grep -Eq 'vendor_id.*GenuineIntel' /proc/cpuinfo; then
-    log_info "Intel CPU detected"
-    sudo modprobe kvm_intel
-    echo "kvm_intel" | sudo tee /etc/modules-load.d/kvm.conf > /dev/null
-elif grep -Eq 'vendor_id.*AuthenticAMD' /proc/cpuinfo; then
-    log_info "AMD CPU detected"
-    sudo modprobe kvm_amd
-    echo "kvm_amd" | sudo tee /etc/modules-load.d/kvm.conf > /dev/null
-else
-    log_warn "Could not detect CPU vendor. KVM module not loaded."
-fi
-
-# Check KVM support
-if [[ -e /dev/kvm ]]; then
-    log_info "/dev/kvm found - Virtualization is working"
-    
-    # Set KVM permissions
+if ! groups "$USER" | grep -qw kvm; then
     sudo usermod -aG kvm "$USER"
-else
-    log_error "/dev/kvm not found!"
-    log_error "Please enable virtualization (VT-x/AMD-V) in your BIOS/UEFI"
 fi
 
-# Configure libvirt default network
-log_info "Starting libvirt default network..."
-sudo virsh net-autostart default 2>/dev/null || true
-sudo virsh net-start default 2>/dev/null || true
+################################################################################
+# KVM
+################################################################################
 
-# Enable systemd-resolved (if needed for dnsmasq)
-if systemctl is-enabled systemd-resolved &> /dev/null; then
-    log_info "systemd-resolved is enabled"
-else
-    log_info "Enabling systemd-resolved..."
-    sudo systemctl enable --now systemd-resolved
+if grep -q GenuineIntel /proc/cpuinfo; then
+
+    sudo modprobe kvm_intel
+
+    echo kvm_intel | sudo tee /etc/modules-load.d/kvm.conf >/dev/null
+
+    echo "options kvm_intel nested=1" |
+        sudo tee /etc/modprobe.d/kvm.conf >/dev/null
+
+elif grep -q AuthenticAMD /proc/cpuinfo; then
+
+    sudo modprobe kvm_amd
+
+    echo kvm_amd | sudo tee /etc/modules-load.d/kvm.conf >/dev/null
+
+    echo "options kvm_amd nested=1" |
+        sudo tee /etc/modprobe.d/kvm.conf >/dev/null
 fi
 
-# Update pkgfile database for command-not-found
-log_info "Updating pkgfile database..."
+################################################################################
+# Default libvirt network
+################################################################################
+
+if ! sudo virsh -c qemu:///system net-info default >/dev/null 2>&1; then
+
+    log_info "Creating libvirt default network..."
+
+    sudo mkdir -p /etc/libvirt/qemu/networks
+
+    sudo tee /etc/libvirt/qemu/networks/default.xml >/dev/null <<EOF
+<network>
+  <name>default</name>
+  <forward mode='nat'/>
+  <bridge name='virbr0' stp='on' delay='0'/>
+  <ip address='192.168.122.1' netmask='255.255.255.0'>
+    <dhcp>
+      <range start='192.168.122.2' end='192.168.122.254'/>
+    </dhcp>
+  </ip>
+</network>
+EOF
+
+    sudo virsh -c qemu:///system net-define \
+        /etc/libvirt/qemu/networks/default.xml
+fi
+
+sudo virsh -c qemu:///system net-autostart default
+sudo virsh -c qemu:///system net-start default || true
+
+################################################################################
+# systemd-resolved
+################################################################################
+
+sudo systemctl enable --now systemd-resolved
+
+################################################################################
+# UFW
+################################################################################
+
+if command -v ufw >/dev/null; then
+
+    log_info "Configuring UFW..."
+
+    HOST_IFACE=$(ip route | awk '/default/ {print $5; exit}')
+
+    sudo ufw allow in on virbr0
+    sudo ufw allow out on virbr0
+    sudo ufw route allow in on virbr0 out on "$HOST_IFACE"
+
+    sudo sed -i \
+        's/^DEFAULT_FORWARD_POLICY=.*/DEFAULT_FORWARD_POLICY="ACCEPT"/' \
+        /etc/default/ufw
+
+    sudo ufw enable
+    sudo ufw reload
+fi
+
+################################################################################
+# pkgfile
+################################################################################
+
 sudo pkgfile --update
 
-# Final checks and information
-log_info "Installation completed successfully!"
-echo ""
-log_warn "IMPORTANT: You need to log out and log back in (or reboot) for group changes to take effect!"
-echo ""
-log_info "Summary:"
-echo "  - Docker: enabled and started"
-echo "  - Libvirt: enabled and started"
-echo "  - User groups: docker, libvirt, kvm"
-echo "  - KVM modules: configured to load at boot"
-echo ""
-log_info "After reboot, verify with:"
-echo "  - docker run hello-world"
-echo "  - virsh list --all"
-echo "  - ls -la /dev/kvm"
-echo ""
-read -p "Do you want to reboot now? (y/N): " -n 1 -r
+################################################################################
+# VirtIO ISO
+################################################################################
+
+ISO=$(find /usr/share -name "virtio-win*.iso" 2>/dev/null | head -n1)
+
+if [[ -n "$ISO" ]]; then
+    log_info "VirtIO ISO available:"
+    echo "  $ISO"
+fi
+
+################################################################################
+# Checks
+################################################################################
+
 echo
-if [[ $REPLY =~ ^[Yy]$ ]]; then
-    log_info "Rebooting system..."
-    systemctl reboot
+log_info "Verification"
+
+echo "--------------------------------"
+
+echo "KVM:"
+[[ -e /dev/kvm ]] && echo "  OK"
+
+echo
+
+echo "Libvirt:"
+sudo virsh -c qemu:///system net-list --all
+
+echo
+
+echo "Docker:"
+systemctl is-enabled docker
+
+echo
+
+echo "Done!"
+echo
+log_warn "Please LOG OUT or REBOOT so that docker/libvirt/kvm group membership becomes active."
+echo
+
+read -rp "Reboot now? [y/N] " REPLY
+
+if [[ "$REPLY" =~ ^[Yy]$ ]]; then
+    sudo reboot
 fi
